@@ -1043,6 +1043,18 @@
 
                     <hr style="margin: 30px 0; border: none; border-top: 2px solid #e0e0e0;">
 
+                    <div class="info-section">
+                        <h3>🔑 Смяна на парола</h3>
+                        <input type="password" id="changePasswordCurrent" class="auth-input" placeholder="Текуща парола">
+                        <input type="password" id="changePasswordNew" class="auth-input" placeholder="Нова парола (мин. 6 символа)">
+                        <input type="password" id="changePasswordConfirm" class="auth-input" placeholder="Потвърди нова парола">
+                        <button onclick="doChangePassword()" style="width: 100%; padding: 12px; margin: 10px 0; background: #667eea; color: white; border: none; border-radius: 10px; font-size: 1em; cursor: pointer; font-weight: bold;">
+                            🔑 Смени паролата
+                        </button>
+                    </div>
+
+                    <hr style="margin: 30px 0; border: none; border-top: 2px solid #e0e0e0;">
+
                     <button onclick="cloudLogout()" style="width: 100%; padding: 15px; margin: 10px 0; background: #f44336; color: white; border: none; border-radius: 10px; font-size: 1.1em; cursor: pointer; font-weight: bold;">
                         🚪 Изход
                     </button>
@@ -1545,6 +1557,54 @@
             };
             
             const url = `${GOOGLE_APPS_SCRIPT_URL}?action=register&email=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}&name=${encodeURIComponent(name)}&callback=${callbackName}`;
+            const script = document.createElement('script');
+            script.id = callbackName + '_script';
+            script.src = url;
+            script.onerror = function() {
+                alert('❌ Грешка при свързване с сървъра!');
+                document.getElementById(callbackName + '_script').remove();
+                delete window[callbackName];
+            };
+            document.body.appendChild(script);
+        }
+
+        function doChangePassword() {
+            const currentPassword = document.getElementById('changePasswordCurrent').value;
+            const newPassword = document.getElementById('changePasswordNew').value;
+            const confirmPassword = document.getElementById('changePasswordConfirm').value;
+            
+            if (!currentPassword || !newPassword || !confirmPassword) {
+                alert('❌ Моля попълни всички полета!');
+                return;
+            }
+            
+            if (newPassword !== confirmPassword) {
+                alert('❌ Новите пароли не съвпадат!');
+                return;
+            }
+            
+            if (newPassword.length < 6) {
+                alert('❌ Новата парола трябва да е поне 6 символа!');
+                return;
+            }
+            
+            const callbackName = 'changePasswordCallback_' + Date.now();
+            
+            window[callbackName] = function(result) {
+                document.getElementById(callbackName + '_script').remove();
+                delete window[callbackName];
+                
+                if (result.success) {
+                    alert('✅ ' + result.message);
+                    document.getElementById('changePasswordCurrent').value = '';
+                    document.getElementById('changePasswordNew').value = '';
+                    document.getElementById('changePasswordConfirm').value = '';
+                } else {
+                    alert('❌ ' + (result.error || 'Грешка при смяна на парола!'));
+                }
+            };
+            
+            const url = `${GOOGLE_APPS_SCRIPT_URL}?action=changePassword&email=${encodeURIComponent(cloudUser.email)}&oldPassword=${encodeURIComponent(currentPassword)}&newPassword=${encodeURIComponent(newPassword)}&callback=${callbackName}`;
             const script = document.createElement('script');
             script.id = callbackName + '_script';
             script.src = url;
