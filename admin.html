@@ -105,6 +105,15 @@
     <div id="dashboard" class="hidden">
         <div class="card">
             <button class="btn-danger logout-btn btn-small" onclick="adminLogout()">🚪 Изход</button>
+            <h2>⚙️ Google Apps Script връзка</h2>
+            <div class="config-box">
+                При нов deployment (ако URL-ът се е сменил), постави новия тук и запази — важи само за твоя браузър.
+            </div>
+            <input type="text" id="scriptUrlInput" placeholder="https://script.google.com/macros/s/.../exec">
+            <button class="btn-primary" onclick="saveScriptUrl()">💾 Запази нов URL</button>
+        </div>
+
+        <div class="card">
             <h2>📊 Обобщение</h2>
             <div class="stats-grid">
                 <div class="stat-box">
@@ -151,12 +160,26 @@
 </div>
 
 <script>
-    // Hardcoded Apps Script URL - not a secret, real security is the server-side
-    // password + GitHub token check inside verifyAdmin() in Apps Script.
-    const GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyNUPcWZ3Yy4f2itUfR7thomzYd_wWi8q0hZamt1Jpw0kTJji0-l4sS3aLoeRyCKEfPPw/exec';
+    // Hardcoded default Apps Script URL (fallback). Not a secret - real
+    // security is the server-side password + GitHub token check in Apps Script.
+    // If you redeploy and get a new URL, log in and update it in the
+    // "⚙️ Google Apps Script връзка" box inside the dashboard - saved locally.
+    const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyNUPcWZ3Yy4f2itUfR7thomzYd_wWi8q0hZamt1Jpw0kTJji0-l4sS3aLoeRyCKEfPPw/exec';
 
+    let ACTIVE_SCRIPT_URL = localStorage.getItem('adminScriptUrl') || DEFAULT_SCRIPT_URL;
     let ADMIN_PASSWORD = '';
     let GITHUB_TOKEN = '';
+
+    function saveScriptUrl() {
+        const url = document.getElementById('scriptUrlInput').value.trim();
+        if (!url) {
+            alert('❌ Моля въведи URL!');
+            return;
+        }
+        localStorage.setItem('adminScriptUrl', url);
+        ACTIVE_SCRIPT_URL = url;
+        alert('✅ Новият URL е запазен за този браузър!');
+    }
 
     // Restore saved session on load
     window.onload = function() {
@@ -176,7 +199,7 @@
     }
 
     function jsonpRequest(params, onSuccess, onError) {
-        const scriptUrl = GOOGLE_APPS_SCRIPT_URL;
+        const scriptUrl = ACTIVE_SCRIPT_URL;
 
         const callbackName = 'adminCallback_' + Date.now();
         window[callbackName] = function(result) {
@@ -248,6 +271,7 @@
     function renderDashboard(result) {
         document.getElementById('loginCard').classList.add('hidden');
         document.getElementById('dashboard').classList.remove('hidden');
+        document.getElementById('scriptUrlInput').value = ACTIVE_SCRIPT_URL;
 
         document.getElementById('statTotal').textContent = result.stats.totalUsers;
         document.getElementById('statActive30').textContent = result.stats.activeLast30Days;
