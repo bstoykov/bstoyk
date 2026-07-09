@@ -220,8 +220,8 @@ function register(data) {
   const hashedPassword = hashPassword(password);
   const timestamp = new Date();
   
-  // Columns: Email, Password, Name, Created, AutoSendToMe, AutoSendToManager, ManagerEmail, TargetPercent, LastLogin, Status
-  sheet.appendRow([email, hashedPassword, name, timestamp, false, false, '', 60, '', 'active']);
+  // Columns: Email, Password, Name, Created, AutoSendToMe, AutoSendToManager, ManagerEmail, TargetPercent, LastLogin, Status, DefaultPeriod
+  sheet.appendRow([email, hashedPassword, name, timestamp, false, false, '', 60, '', 'active', 'quarter']);
   
   return { 
     success: true, 
@@ -262,7 +262,8 @@ function login(data) {
             autoSendToMe: users[i][4],
             autoSendToManager: users[i][5],
             managerEmail: users[i][6],
-            targetPercent: users[i][7] || 60
+            targetPercent: users[i][7] || 60,
+            defaultPeriod: users[i][10] || 'quarter'
           }
         };
       } else {
@@ -388,6 +389,9 @@ function updateSettings(data) {
       }
       if (data.hasOwnProperty('targetPercent')) {
         sheet.getRange(i + 1, 8).setValue(data.targetPercent);
+      }
+      if (data.hasOwnProperty('defaultPeriod')) {
+        sheet.getRange(i + 1, 11).setValue(data.defaultPeriod);
       }
       
       return { success: true };
