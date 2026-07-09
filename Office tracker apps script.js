@@ -22,6 +22,12 @@ function doPost(e) {
       case 'changePassword':
         result = changePassword(data);
         break;
+      case 'requestPasswordReset':
+        result = requestPasswordReset(data);
+        break;
+      case 'resetPasswordWithCode':
+        result = resetPasswordWithCode(data);
+        break;
       case 'saveAttendance':
         result = saveAttendance(data);
         break;
@@ -74,6 +80,12 @@ function doGet(e) {
         break;
       case 'changePassword':
         result = changePassword(e.parameter);
+        break;
+      case 'requestPasswordReset':
+        result = requestPasswordReset(e.parameter);
+        break;
+      case 'resetPasswordWithCode':
+        result = resetPasswordWithCode(e.parameter);
         break;
       case 'register':
         result = register(e.parameter);
@@ -307,6 +319,100 @@ function changePassword(data) {
       
       sheet.getRange(i + 1, 2).setValue(hashPassword(newPassword));
       return { success: true, message: 'Паролата е сменена успешно!' };
+    }
+  }
+  
+  return { success: false, error: 'Потребителят не е намерен!' };
+}
+
+function requestPasswordReset(data) {
+  const sheet = getSpreadsheet().getSheetByName('Users');
+  const email = data.email;
+  
+  if (!email) {
+    return { success: false, error: 'Email е задължителен!' };
+  }
+  
+  const users = sheet.getDataRange().getValues();
+  
+  for (let i = 1; i < users.length; i++) {
+    if (users[i][0] === email) {
+      // Generate 6-digit code
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      const expiry = new Date(new Date().getTime() + 15 * 60 * 1000); // 15 минути валидност
+      
+      sheet.getRange(i + 1, 12).setValue(code);    // Column L: ResetCode
+      sheet.getRange(i + 1, 13).setValue(expiry);  // Column M: ResetCodeExpiry
+      
+      const name = users[i][2];
+      
+      MailApp.sendEmail({
+        to: email,
+        subject: '🔑 Офис Тракер - Код за възстановяване на парола',
+        htmlBody: `
+          <html>
+            <body style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 20px;">
+              <h2 style="color: #667eea;">🔑 Възстановяване на парола</h2>
+              <p>Здравей${name ? ' ' + name : ''}!</p>
+              <p>Получихме заявка за възстановяване на паролата ти. Ето твоя код:</p>
+              <div style="background: #f0f4ff; padding: 20px; border-radius: 10px; text-align: center; margin: 20px 0;">
+                <span style="font-size: 2em; font-weight: bold; color: #667eea; letter-spacing: 5px;">${code}</span>
+              </div>
+              <p style="color: #666; font-size: 0.9em;">Кодът е валиден 15 минути. Ако не си поискал промяна на парола, просто игнорирай този email.</p>
+              <hr style="margin: 30px 0; border: none; border-top: 2px solid #e0e0e0;">
+              <p style="color: #999; font-size: 0.85em;"><strong>Офис Тракер 3x2</strong> by Bozhidar Stoykov</p>
+            </body>
+          </html>
+        `,
+        name: 'Офис Тракер репорт | Bozhidar Stoykov'
+      });
+      
+      return { success: true, message: `Кодът е изпратен на ${email}!` };
+    }
+  }
+  
+  return { success: false, error: 'Няма регистриран потребител с този email!' };
+}
+
+function resetPasswordWithCode(data) {
+  const sheet = getSpreadsheet().getSheetByName('Users');
+  const email = data.email;
+  const code = data.code;
+  const newPassword = data.newPassword;
+  
+  if (!email || !code || !newPassword) {
+    return { success: false, error: 'Всички полета са задължителни!' };
+  }
+  
+  if (newPassword.length < 6) {
+    return { success: false, error: 'Новата парола трябва да е поне 6 символа!' };
+  }
+  
+  const users = sheet.getDataRange().getValues();
+  
+  for (let i = 1; i < users.length; i++) {
+    if (users[i][0] === email) {
+      const storedCode = users[i][11] ? users[i][11].toString() : '';
+      const expiry = users[i][12];
+      
+      if (!storedCode) {
+        return { success: false, error: 'Няма заявка за смяна на парола. Поискай нов код.' };
+      }
+      
+      if (storedCode !== code.toString()) {
+        return { success: false, error: 'Грешен код!' };
+      }
+      
+      if (!expiry || new Date() > new Date(expiry)) {
+        return { success: false, error: 'Кодът е изтекъл! Поискай нов.' };
+      }
+      
+      sheet.getRange(i + 1, 2).setValue(hashPassword(newPassword));
+      // Clear the reset code so it can't be reused
+      sheet.getRange(i + 1, 12).setValue('');
+      sheet.getRange(i + 1, 13).setValue('');
+      
+      return { success: true, message: 'Паролата е сменена успешно! Можеш да влезеш.' };
     }
   }
   
