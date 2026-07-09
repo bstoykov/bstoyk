@@ -89,16 +89,6 @@
         <p class="sub">Офис Тракер 3x2 — управление на потребители</p>
     </div>
 
-    <!-- Config: Apps Script URL -->
-    <div class="card" id="configCard">
-        <h2>⚙️ Настройка на връзка</h2>
-        <div class="config-box">
-            Постави тук Web App URL-а на твоя Google Apps Script deployment (същия като в основния сайт). Пази се локално в този браузър.
-        </div>
-        <input type="text" id="scriptUrlInput" placeholder="https://script.google.com/macros/s/.../exec">
-        <button class="btn-primary" onclick="saveScriptUrl()">💾 Запази URL</button>
-    </div>
-
     <!-- Login -->
     <div class="card" id="loginCard">
         <h2>🔑 Вход</h2>
@@ -161,29 +151,15 @@
 </div>
 
 <script>
+    // Hardcoded Apps Script URL - not a secret, real security is the server-side
+    // password + GitHub token check inside verifyAdmin() in Apps Script.
+    const GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyNUPcWZ3Yy4f2itUfR7thomzYd_wWi8q0hZamt1Jpw0kTJji0-l4sS3aLoeRyCKEfPPw/exec';
+
     let ADMIN_PASSWORD = '';
     let GITHUB_TOKEN = '';
 
-    function getScriptUrl() {
-        return localStorage.getItem('adminScriptUrl') || '';
-    }
-
-    function saveScriptUrl() {
-        const url = document.getElementById('scriptUrlInput').value.trim();
-        if (!url) {
-            alert('❌ Моля въведи URL!');
-            return;
-        }
-        localStorage.setItem('adminScriptUrl', url);
-        alert('✅ URL е запазен!');
-    }
-
-    // Restore saved values on load
+    // Restore saved session on load
     window.onload = function() {
-        const savedUrl = getScriptUrl();
-        if (savedUrl) {
-            document.getElementById('scriptUrlInput').value = savedUrl;
-        }
         const savedAuth = sessionStorage.getItem('adminAuth');
         if (savedAuth) {
             const auth = JSON.parse(savedAuth);
@@ -200,11 +176,7 @@
     }
 
     function jsonpRequest(params, onSuccess, onError) {
-        const scriptUrl = getScriptUrl();
-        if (!scriptUrl) {
-            onError('Моля първо запази Apps Script URL!');
-            return;
-        }
+        const scriptUrl = GOOGLE_APPS_SCRIPT_URL;
 
         const callbackName = 'adminCallback_' + Date.now();
         window[callbackName] = function(result) {
@@ -275,7 +247,6 @@
 
     function renderDashboard(result) {
         document.getElementById('loginCard').classList.add('hidden');
-        document.getElementById('configCard').classList.add('hidden');
         document.getElementById('dashboard').classList.remove('hidden');
 
         document.getElementById('statTotal').textContent = result.stats.totalUsers;
@@ -399,7 +370,6 @@
         GITHUB_TOKEN = '';
         document.getElementById('dashboard').classList.add('hidden');
         document.getElementById('loginCard').classList.remove('hidden');
-        document.getElementById('configCard').classList.remove('hidden');
         document.getElementById('adminPasswordInput').value = '';
         document.getElementById('githubTokenInput').value = '';
     }
