@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔐 Админ Панел | Офис Тракер 3x2</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+        .container { max-width: 1100px; margin: 0 auto; }
+        .card {
+            background: white;
+            padding: 25px;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            margin-bottom: 25px;
+        }
+        h1 { color: #667eea; font-size: 1.8em; margin-bottom: 5px; }
+        h2 { color: #333; font-size: 1.2em; margin-bottom: 15px; }
+        p.sub { color: #666; margin-bottom: 20px; }
+        input {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 1em;
+        }
+        input:focus { outline: none; border-color: #667eea; }
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-primary { background: #667eea; color: white; width: 100%; margin-top: 10px; }
+        .btn-primary:hover { background: #5568d3; transform: translateY(-1px); }
+        .btn-danger { background: #f44336; color: white; }
+        .btn-warning { background: #FF9800; color: white; }
+        .btn-success { background: #4CAF50; color: white; }
+        .btn-small { padding: 6px 12px; font-size: 0.85em; margin: 2px; }
+        .hidden { display: none; }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        .stat-box {
+            background: #f0f4ff;
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+        }
+        .stat-box .num { font-size: 2.2em; font-weight: bold; color: #667eea; }
+        .stat-box .label { color: #666; font-size: 0.85em; margin-top: 5px; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background: #f5f5f5; color: #667eea; }
+        tr:hover { background: #fafafa; }
+        .status-active { color: #4CAF50; font-weight: bold; }
+        .status-deactivated { color: #f44336; font-weight: bold; }
+        .error-box {
+            background: #f8d7da; color: #721c24; padding: 12px 16px;
+            border-radius: 10px; margin: 10px 0; display: none;
+        }
+        .config-box {
+            background: #FFF3E0; padding: 15px; border-radius: 10px;
+            margin-bottom: 15px; font-size: 0.9em;
+        }
+        .table-wrap { overflow-x: auto; }
+        .logout-btn { float: right; }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <div class="card">
+        <h1>🔐 Админ Панел</h1>
+        <p class="sub">Офис Тракер 3x2 — управление на потребители</p>
+    </div>
+
+    <!-- Config: Apps Script URL -->
+    <div class="card" id="configCard">
+        <h2>⚙️ Настройка на връзка</h2>
+        <div class="config-box">
+            Постави тук Web App URL-а на твоя Google Apps Script deployment (същия като в основния сайт). Пази се локално в този браузър.
+        </div>
+        <input type="text" id="scriptUrlInput" placeholder="https://script.google.com/macros/s/.../exec">
+        <button class="btn-primary" onclick="saveScriptUrl()">💾 Запази URL</button>
+    </div>
+
+    <!-- Login -->
+    <div class="card" id="loginCard">
+        <h2>🔑 Вход</h2>
+        <div class="error-box" id="loginError"></div>
+        <input type="password" id="adminPasswordInput" placeholder="Админ парола">
+        <input type="password" id="githubTokenInput" placeholder="GitHub Personal Access Token">
+        <p class="sub" style="font-size: 0.8em; margin-top: 5px;">
+            Token се създава от <a href="https://github.com/settings/tokens" target="_blank">github.com/settings/tokens</a> (без нужда от специални permissions — само за верификация на самоличност).
+        </p>
+        <button class="btn-primary" onclick="doAdminLogin()">🔓 Вход в админ панела</button>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="dashboard" class="hidden">
+        <div class="card">
+            <button class="btn-danger logout-btn btn-small" onclick="adminLogout()">🚪 Изход</button>
+            <h2>📊 Обобщение</h2>
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <div class="num" id="statTotal">0</div>
+                    <div class="label">Общо регистрирани</div>
+                </div>
+                <div class="stat-box">
+                    <div class="num" id="statActive30">0</div>
+                    <div class="label">Активни (30 дни)</div>
+                </div>
+                <div class="stat-box">
+                    <div class="num" id="statEverLoggedIn">0</div>
+                    <div class="label">Влизали поне веднъж</div>
+                </div>
+                <div class="stat-box">
+                    <div class="num" id="statAutoSend">0</div>
+                    <div class="label">С включен auto-send</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>👥 Потребители</h2>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Email</th>
+                            <th>Име</th>
+                            <th>Регистриран</th>
+                            <th>Последен вход</th>
+                            <th>Статус</th>
+                            <th>Цел %</th>
+                            <th>Auto-send</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    let ADMIN_PASSWORD = '';
+    let GITHUB_TOKEN = '';
+
+    function getScriptUrl() {
+        return localStorage.getItem('adminScriptUrl') || '';
+    }
+
+    function saveScriptUrl() {
+        const url = document.getElementById('scriptUrlInput').value.trim();
+        if (!url) {
+            alert('❌ Моля въведи URL!');
+            return;
+        }
+        localStorage.setItem('adminScriptUrl', url);
+        alert('✅ URL е запазен!');
+    }
+
+    // Restore saved values on load
+    window.onload = function() {
+        const savedUrl = getScriptUrl();
+        if (savedUrl) {
+            document.getElementById('scriptUrlInput').value = savedUrl;
+        }
+        const savedAuth = sessionStorage.getItem('adminAuth');
+        if (savedAuth) {
+            const auth = JSON.parse(savedAuth);
+            ADMIN_PASSWORD = auth.password;
+            GITHUB_TOKEN = auth.token;
+            loadDashboard();
+        }
+    };
+
+    function showLoginError(msg) {
+        const box = document.getElementById('loginError');
+        box.textContent = '❌ ' + msg;
+        box.style.display = 'block';
+    }
+
+    function jsonpRequest(params, onSuccess, onError) {
+        const scriptUrl = getScriptUrl();
+        if (!scriptUrl) {
+            onError('Моля първо запази Apps Script URL!');
+            return;
+        }
+
+        const callbackName = 'adminCallback_' + Date.now();
+        window[callbackName] = function(result) {
+            const scriptTag = document.getElementById(callbackName + '_script');
+            if (scriptTag) scriptTag.remove();
+            delete window[callbackName];
+            
+            if (result.success) {
+                onSuccess(result);
+            } else {
+                onError(result.error || 'Неизвестна грешка');
+            }
+        };
+
+        const queryParams = new URLSearchParams({ ...params, callback: callbackName }).toString();
+        const url = `${scriptUrl}?${queryParams}`;
+
+        const script = document.createElement('script');
+        script.id = callbackName + '_script';
+        script.src = url;
+        script.onerror = function() {
+            script.remove();
+            delete window[callbackName];
+            onError('Грешка при връзка със сървъра!');
+        };
+        document.body.appendChild(script);
+    }
+
+    function doAdminLogin() {
+        document.getElementById('loginError').style.display = 'none';
+        const password = document.getElementById('adminPasswordInput').value;
+        const token = document.getElementById('githubTokenInput').value.trim();
+
+        if (!password || !token) {
+            showLoginError('Моля попълни парола и GitHub token!');
+            return;
+        }
+
+        ADMIN_PASSWORD = password;
+        GITHUB_TOKEN = token;
+
+        jsonpRequest(
+            { action: 'adminGetStats', adminPassword: password, githubToken: token },
+            function(result) {
+                sessionStorage.setItem('adminAuth', JSON.stringify({ password, token }));
+                renderDashboard(result);
+            },
+            function(err) {
+                ADMIN_PASSWORD = '';
+                GITHUB_TOKEN = '';
+                showLoginError(err);
+            }
+        );
+    }
+
+    function loadDashboard() {
+        jsonpRequest(
+            { action: 'adminGetStats', adminPassword: ADMIN_PASSWORD, githubToken: GITHUB_TOKEN },
+            function(result) {
+                renderDashboard(result);
+            },
+            function(err) {
+                sessionStorage.removeItem('adminAuth');
+                showLoginError('Сесията изтече: ' + err);
+            }
+        );
+    }
+
+    function renderDashboard(result) {
+        document.getElementById('loginCard').classList.add('hidden');
+        document.getElementById('configCard').classList.add('hidden');
+        document.getElementById('dashboard').classList.remove('hidden');
+
+        document.getElementById('statTotal').textContent = result.stats.totalUsers;
+        document.getElementById('statActive30').textContent = result.stats.activeLast30Days;
+        document.getElementById('statEverLoggedIn').textContent = result.stats.everLoggedIn;
+        document.getElementById('statAutoSend').textContent = result.stats.autoSendCount;
+
+        const tbody = document.getElementById('usersTableBody');
+        tbody.innerHTML = '';
+
+        result.users.forEach(user => {
+            const row = document.createElement('tr');
+            const statusClass = user.status === 'active' ? 'status-active' : 'status-deactivated';
+            const statusLabel = user.status === 'active' ? '✅ Активен' : '🚫 Деактивиран';
+            const autoSendLabel = (user.autoSendToMe || user.autoSendToManager)
+                ? `${user.autoSendToMe ? '👤' : ''}${user.autoSendToManager ? '👔' : ''}`
+                : '—';
+
+            row.innerHTML = `
+                <td>${escapeHtml(user.email)}</td>
+                <td>${escapeHtml(user.name || '')}</td>
+                <td>${user.created}</td>
+                <td>${user.lastLogin}</td>
+                <td class="${statusClass}">${statusLabel}</td>
+                <td>${user.targetPercent}%</td>
+                <td>${autoSendLabel}</td>
+                <td>
+                    <button class="btn-warning btn-small" onclick="resetUserPassword('${escapeJs(user.email)}')">🔑 Reset</button>
+                    ${user.status === 'active'
+                        ? `<button class="btn-danger btn-small" onclick="toggleUserStatus('${escapeJs(user.email)}', 'deactivated')">🚫 Деактивирай</button>`
+                        : `<button class="btn-success btn-small" onclick="toggleUserStatus('${escapeJs(user.email)}', 'active')">✅ Активирай</button>`
+                    }
+                    <button class="btn-danger btn-small" onclick="deleteUser('${escapeJs(user.email)}')">🗑️ Изтрий</button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+    }
+
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str || '';
+        return div.innerHTML;
+    }
+
+    function escapeJs(str) {
+        return (str || '').replace(/'/g, "\\'");
+    }
+
+    function resetUserPassword(email) {
+        const newPassword = prompt(`Нова парола за ${email} (мин. 6 символа):`);
+        if (!newPassword) return;
+        if (newPassword.length < 6) {
+            alert('❌ Паролата трябва да е поне 6 символа!');
+            return;
+        }
+
+        jsonpRequest(
+            {
+                action: 'adminResetPassword',
+                adminPassword: ADMIN_PASSWORD,
+                githubToken: GITHUB_TOKEN,
+                targetEmail: email,
+                newPassword: newPassword
+            },
+            function(result) {
+                alert('✅ ' + result.message);
+            },
+            function(err) {
+                alert('❌ ' + err);
+            }
+        );
+    }
+
+    function toggleUserStatus(email, newStatus) {
+        const actionLabel = newStatus === 'deactivated' ? 'деактивираш' : 'активираш';
+        if (!confirm(`Сигурен ли си че искаш да ${actionLabel} ${email}?`)) return;
+
+        jsonpRequest(
+            {
+                action: 'adminSetUserStatus',
+                adminPassword: ADMIN_PASSWORD,
+                githubToken: GITHUB_TOKEN,
+                targetEmail: email,
+                newStatus: newStatus
+            },
+            function(result) {
+                alert('✅ ' + result.message);
+                loadDashboard();
+            },
+            function(err) {
+                alert('❌ ' + err);
+            }
+        );
+    }
+
+    function deleteUser(email) {
+        if (!confirm(`⚠️ ТРАЙНО ИЗТРИВАНЕ на ${email} и всичките му записи!\n\nТова НЕ МОЖЕ да се отмени. Продължи ли?`)) return;
+        if (!confirm(`Последно потвърждение — наистина ли да изтрия ${email}?`)) return;
+
+        jsonpRequest(
+            {
+                action: 'adminDeleteUser',
+                adminPassword: ADMIN_PASSWORD,
+                githubToken: GITHUB_TOKEN,
+                targetEmail: email
+            },
+            function(result) {
+                alert('✅ ' + result.message);
+                loadDashboard();
+            },
+            function(err) {
+                alert('❌ ' + err);
+            }
+        );
+    }
+
+    function adminLogout() {
+        sessionStorage.removeItem('adminAuth');
+        ADMIN_PASSWORD = '';
+        GITHUB_TOKEN = '';
+        document.getElementById('dashboard').classList.add('hidden');
+        document.getElementById('loginCard').classList.remove('hidden');
+        document.getElementById('configCard').classList.remove('hidden');
+        document.getElementById('adminPasswordInput').value = '';
+        document.getElementById('githubTokenInput').value = '';
+    }
+</script>
+</body>
+</html>
