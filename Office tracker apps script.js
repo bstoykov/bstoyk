@@ -19,6 +19,9 @@ function doPost(e) {
       case 'login':
         result = login(data);
         break;
+      case 'changePassword':
+        result = changePassword(data);
+        break;
       case 'saveAttendance':
         result = saveAttendance(data);
         break;
@@ -68,6 +71,9 @@ function doGet(e) {
     switch(action) {
       case 'login':
         result = login(e.parameter);
+        break;
+      case 'changePassword':
+        result = changePassword(e.parameter);
         break;
       case 'register':
         result = register(e.parameter);
@@ -270,6 +276,37 @@ function login(data) {
         // Email found but wrong password
         return { success: false, error: 'Грешна парола!' };
       }
+    }
+  }
+  
+  return { success: false, error: 'Потребителят не е намерен!' };
+}
+
+function changePassword(data) {
+  const sheet = getSpreadsheet().getSheetByName('Users');
+  const email = data.email;
+  const oldPassword = data.oldPassword;
+  const newPassword = data.newPassword;
+  
+  if (!email || !oldPassword || !newPassword) {
+    return { success: false, error: 'Всички полета са задължителни!' };
+  }
+  
+  if (newPassword.length < 6) {
+    return { success: false, error: 'Новата парола трябва да е поне 6 символа!' };
+  }
+  
+  const oldHashed = hashPassword(oldPassword);
+  const users = sheet.getDataRange().getValues();
+  
+  for (let i = 1; i < users.length; i++) {
+    if (users[i][0] === email) {
+      if (users[i][1] !== oldHashed) {
+        return { success: false, error: 'Текущата парола е грешна!' };
+      }
+      
+      sheet.getRange(i + 1, 2).setValue(hashPassword(newPassword));
+      return { success: true, message: 'Паролата е сменена успешно!' };
     }
   }
   
