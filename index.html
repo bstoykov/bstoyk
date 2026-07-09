@@ -1095,6 +1095,10 @@
                 🔓 Влез
             </button>
             
+            <div class="auth-link" style="margin-top: 5px;">
+                <a onclick="showForgotPassword()" style="font-size: 0.9em;">Забравена парола?</a>
+            </div>
+            
             <div class="auth-link">
                 Нямаш акаунт? <a onclick="switchToRegister()">Регистрирай се</a>
             </div>
@@ -1121,6 +1125,49 @@
             
             <div class="auth-link">
                 Вече имаш акаунт? <a onclick="switchToLogin()">Влез тук</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Forgot Password Modal -->
+<div id="forgotPasswordModal" class="modal">
+    <div class="modal-content" style="max-width: 400px;">
+        <div class="modal-header">
+            <h2>🔑 Забравена парола</h2>
+            <button class="close-btn" onclick="closeForgotPasswordModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+
+            <!-- Stage 1: Enter email -->
+            <div id="forgotStage1">
+                <p style="color: #666; margin-bottom: 15px; font-size: 0.95em;">
+                    Въведи своя email и ще ти изпратим код за възстановяване.
+                </p>
+                <input type="email" id="forgotEmailInput" class="auth-input" placeholder="📧 Email" />
+                <button onclick="doRequestPasswordReset()" class="auth-btn auth-btn-primary">
+                    📧 Изпрати код
+                </button>
+            </div>
+
+            <!-- Stage 2: Enter code + new password -->
+            <div id="forgotStage2" class="hidden">
+                <p style="color: #666; margin-bottom: 15px; font-size: 0.95em;">
+                    Провери email-а си за 6-цифрен код (валиден 15 мин).
+                </p>
+                <input type="text" id="forgotCodeInput" class="auth-input" placeholder="🔢 Код от email" maxlength="6" />
+                <input type="password" id="forgotNewPasswordInput" class="auth-input" placeholder="🔒 Нова парола (мин. 6 символа)" />
+                <input type="password" id="forgotNewPasswordConfirmInput" class="auth-input" placeholder="🔒 Потвърди нова парола" />
+                <button onclick="doResetPasswordWithCode()" class="auth-btn auth-btn-primary">
+                    ✅ Смени паролата
+                </button>
+                <div class="auth-link">
+                    <a onclick="showForgotPasswordStage1()" style="font-size: 0.9em;">← Не получих код / поискай нов</a>
+                </div>
+            </div>
+
+            <div class="auth-link">
+                <a onclick="switchToLogin(); closeForgotPasswordModal();">← Обратно към вход</a>
             </div>
         </div>
     </div>
@@ -1409,6 +1456,112 @@
         function switchToLogin() {
             closeRegisterModal();
             showCloudLogin();
+        }
+
+        function showForgotPassword() {
+            closeLoginModal();
+            document.getElementById('forgotPasswordModal').style.display = 'block';
+            showForgotPasswordStage1();
+        }
+
+        function closeForgotPasswordModal() {
+            document.getElementById('forgotPasswordModal').style.display = 'none';
+            document.getElementById('forgotEmailInput').value = '';
+            document.getElementById('forgotCodeInput').value = '';
+            document.getElementById('forgotNewPasswordInput').value = '';
+            document.getElementById('forgotNewPasswordConfirmInput').value = '';
+        }
+
+        function showForgotPasswordStage1() {
+            document.getElementById('forgotStage1').classList.remove('hidden');
+            document.getElementById('forgotStage2').classList.add('hidden');
+        }
+
+        function showForgotPasswordStage2() {
+            document.getElementById('forgotStage1').classList.add('hidden');
+            document.getElementById('forgotStage2').classList.remove('hidden');
+        }
+
+        function doRequestPasswordReset() {
+            const email = document.getElementById('forgotEmailInput').value.trim();
+            
+            if (!email) {
+                alert('❌ Моля въведи email!');
+                return;
+            }
+            
+            const callbackName = 'forgotCallback_' + Date.now();
+            
+            window[callbackName] = function(result) {
+                document.getElementById(callbackName + '_script').remove();
+                delete window[callbackName];
+                
+                if (result.success) {
+                    alert('✅ ' + result.message);
+                    showForgotPasswordStage2();
+                } else {
+                    alert('❌ ' + (result.error || 'Грешка при изпращане на код!'));
+                }
+            };
+            
+            const url = `${GOOGLE_APPS_SCRIPT_URL}?action=requestPasswordReset&email=${encodeURIComponent(email)}&callback=${callbackName}`;
+            const script = document.createElement('script');
+            script.id = callbackName + '_script';
+            script.src = url;
+            script.onerror = function() {
+                alert('❌ Грешка при свързване с сървъра!');
+                document.getElementById(callbackName + '_script').remove();
+                delete window[callbackName];
+            };
+            document.body.appendChild(script);
+        }
+
+        function doResetPasswordWithCode() {
+            const email = document.getElementById('forgotEmailInput').value.trim();
+            const code = document.getElementById('forgotCodeInput').value.trim();
+            const newPassword = document.getElementById('forgotNewPasswordInput').value;
+            const confirmPassword = document.getElementById('forgotNewPasswordConfirmInput').value;
+            
+            if (!code || !newPassword || !confirmPassword) {
+                alert('❌ Моля попълни всички полета!');
+                return;
+            }
+            
+            if (newPassword !== confirmPassword) {
+                alert('❌ Паролите не съвпадат!');
+                return;
+            }
+            
+            if (newPassword.length < 6) {
+                alert('❌ Паролата трябва да е поне 6 символа!');
+                return;
+            }
+            
+            const callbackName = 'resetCallback_' + Date.now();
+            
+            window[callbackName] = function(result) {
+                document.getElementById(callbackName + '_script').remove();
+                delete window[callbackName];
+                
+                if (result.success) {
+                    alert('✅ ' + result.message);
+                    closeForgotPasswordModal();
+                    showCloudLogin();
+                } else {
+                    alert('❌ ' + (result.error || 'Грешка при смяна на парола!'));
+                }
+            };
+            
+            const url = `${GOOGLE_APPS_SCRIPT_URL}?action=resetPasswordWithCode&email=${encodeURIComponent(email)}&code=${encodeURIComponent(code)}&newPassword=${encodeURIComponent(newPassword)}&callback=${callbackName}`;
+            const script = document.createElement('script');
+            script.id = callbackName + '_script';
+            script.src = url;
+            script.onerror = function() {
+                alert('❌ Грешка при свързване с сървъра!');
+                document.getElementById(callbackName + '_script').remove();
+                delete window[callbackName];
+            };
+            document.body.appendChild(script);
         }
 
         function doLogin() {
@@ -2534,6 +2687,7 @@ Q1: ${Math.round(stats.quarter.compliancePercent)}% ${stats.quarter.compliancePe
             const cloudModal = document.getElementById('cloudModal');
             const loginModal = document.getElementById('loginModal');
             const registerModal = document.getElementById('registerModal');
+            const forgotPasswordModal = document.getElementById('forgotPasswordModal');
             
             if (event.target == infoModal) {
                 closeInfoModal();
@@ -2545,6 +2699,8 @@ Q1: ${Math.round(stats.quarter.compliancePercent)}% ${stats.quarter.compliancePe
                 closeLoginModal();
             } else if (event.target == registerModal) {
                 closeRegisterModal();
+            } else if (event.target == forgotPasswordModal) {
+                closeForgotPasswordModal();
             }
         }
     </script>
