@@ -1024,6 +1024,25 @@
 
                     <hr style="margin: 30px 0; border: none; border-top: 2px solid #e0e0e0;">
 
+                    <div class="info-section">
+                        <h3>📅 Дефолтен период при отваряне</h3>
+                        <p style="font-size: 0.9em; color: #666; margin-bottom: 15px;">
+                            Кой изглед да се показва автоматично, когато отвориш приложението. По подразбиране: Тримесечие.
+                        </p>
+
+                        <div style="background: #f0f4ff; padding: 15px; border-radius: 10px; margin-bottom: 15px;">
+                            <p style="margin: 0; font-size: 0.95em;">Текущ избор: <strong id="currentDefaultPeriodDisplay" style="color: #667eea;">Тримесечие</strong></p>
+                        </div>
+
+                        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                            <button onclick="setDefaultPeriodPreference('week')" class="period-btn" style="flex: 1; min-width: 80px;">Седмица</button>
+                            <button onclick="setDefaultPeriodPreference('month')" class="period-btn" style="flex: 1; min-width: 80px;">Месец</button>
+                            <button onclick="setDefaultPeriodPreference('quarter')" class="period-btn" style="flex: 1; min-width: 80px;">Тримесечие</button>
+                        </div>
+                    </div>
+
+                    <hr style="margin: 30px 0; border: none; border-top: 2px solid #e0e0e0;">
+
                     <button onclick="cloudLogout()" style="width: 100%; padding: 15px; margin: 10px 0; background: #f44336; color: white; border: none; border-radius: 10px; font-size: 1.1em; cursor: pointer; font-weight: bold;">
                         🚪 Изход
                     </button>
@@ -1236,6 +1255,8 @@
                 return;
             }
             
+            applyDefaultPeriodToUI(cloudUser.defaultPeriod);
+            
             const localDataCount = Object.keys(attendanceData).length;
             const hasLoadedCloudData = localStorage.getItem('hasLoadedCloudData_' + cloudUser.email);
             
@@ -1333,6 +1354,8 @@
                 
                 const targetPercent = cloudUser.targetPercent || 60;
                 document.getElementById('currentTargetPercentDisplay').textContent = `${targetPercent}% / ${100 - targetPercent}%`;
+                
+                document.getElementById('currentDefaultPeriodDisplay').textContent = periodLabel(cloudUser.defaultPeriod || 'quarter');
             } else {
                 document.getElementById('cloudNotLoggedIn').classList.remove('hidden');
                 document.getElementById('cloudLoggedIn').classList.add('hidden');
@@ -1399,10 +1422,12 @@
                         autoSendToMe: result.user.autoSendToMe || false,
                         autoSendToManager: result.user.autoSendToManager || false,
                         managerEmail: result.user.managerEmail || null,
-                        targetPercent: result.user.targetPercent || 60
+                        targetPercent: result.user.targetPercent || 60,
+                        defaultPeriod: result.user.defaultPeriod || 'quarter'
                     };
                     localStorage.setItem('cloudUser', JSON.stringify(cloudUser));
                     updateCloudStatusBadge();
+                    applyDefaultPeriodToUI(cloudUser.defaultPeriod);
                     closeLoginModal();
                     
                     // IMPORTANT: Save local data before loading from cloud
@@ -1659,6 +1684,46 @@
             
             updateTargetPercent(percent);
             input.value = '';
+        }
+
+        function periodLabel(period) {
+            if (period === 'week') return 'Седмица';
+            if (period === 'month') return 'Месец';
+            return 'Тримесечие';
+        }
+
+        function applyDefaultPeriodToUI(period) {
+            currentPeriod = period || 'quarter';
+            document.querySelectorAll('.period-selector .period-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.getAttribute('onclick') === `changePeriod('${currentPeriod}')`) {
+                    btn.classList.add('active');
+                }
+            });
+        }
+
+        function setDefaultPeriodPreference(period) {
+            if (!cloudUser) return;
+            
+            cloudUser.defaultPeriod = period;
+            localStorage.setItem('cloudUser', JSON.stringify(cloudUser));
+            
+            const displayEl = document.getElementById('currentDefaultPeriodDisplay');
+            if (displayEl) displayEl.textContent = periodLabel(period);
+            
+            // Update in Google Sheets
+            fetch(GOOGLE_APPS_SCRIPT_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'updateSettings',
+                    email: cloudUser.email,
+                    defaultPeriod: period
+                })
+            });
+            
+            alert(`✅ Дефолтният период е зададен на "${periodLabel(period)}"!`);
         }
 
         function setManagerEmail() {
