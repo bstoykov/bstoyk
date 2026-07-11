@@ -276,11 +276,21 @@ function findPriceFallback(text){
   return m ? m[0] : null;
 }
 
+function findSettlementFallback(text){
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  for(const line of lines){
+    const m = line.match(/^(с\.|гр\.|село|град)\s*([А-Яа-яЁё\-]+)/i);
+    if(m) return capitalize(m[2]);
+  }
+  return null;
+}
+
 function findAddressFallback(text){
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
   const results = [];
   lines.forEach((l, i) => {
-    if(/^(ул\.|с\.|гр\.|бул\.|ж\.к\.|кв\.)/i.test(l)) results.push(l);
+    if(/^(с\.|гр\.|село|град)\s*[А-Яа-яЁё\-]+/i.test(l)) results.push(l); // селото/градът остава и в адреса
+    if(/^(ул\.|бул\.|ж\.к\.|кв\.)/i.test(l)) results.push(l);
     if(/econt|еконт|speedy|спиди/i.test(l)){
       results.push(l);
       if(lines[i+1] && !/^(тел|телефон|\+?\d)/i.test(lines[i+1])) results.push(lines[i+1]);
@@ -349,6 +359,10 @@ function parseRaw(text){
   if(!result.price){
     const pr = findPriceFallback(text);
     if(pr) result.price = pr;
+  }
+  if(!result.city){
+    const s = findSettlementFallback(text);
+    if(s) result.city = s;
   }
   if(!result.city){
     const c = findCityFromEcont(text);
