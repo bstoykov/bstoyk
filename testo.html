@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OLX Поръчки — Тракер</title>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<style>
+  :root{
+    --ink:#1c1b19; --paper:#f7f5f0; --line:#d8d3c7; --accent:#3f5d4e;
+    --accent-soft:#e8ede9; --warn:#a8452f; --warn-soft:#f5e6e1;
+    --caution:#a8792f; --caution-soft:#f5eee1;
+    --mono: "IBM Plex Mono", "Courier New", monospace;
+    --serif: "Iowan Old Style", "Georgia", serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--serif);-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1050px;margin:0 auto;padding:28px 20px 80px;}
+  header{display:flex;align-items:baseline;justify-content:space-between;border-bottom:2px solid var(--ink);padding-bottom:12px;margin-bottom:22px;flex-wrap:wrap;gap:8px;}
+  header h1{font-size:1.5rem;margin:0;letter-spacing:0.02em;font-weight:600;}
+  header .tag{font-family:var(--mono);font-size:0.72rem;color:#6b6659;text-transform:uppercase;letter-spacing:0.08em;}
+  .panel{background:#fff;border:1px solid var(--line);border-radius:2px;padding:18px;margin-bottom:20px;}
+  .panel h2{font-size:0.78rem;text-transform:uppercase;letter-spacing:0.09em;color:#6b6659;margin:0 0 12px;font-family:var(--mono);font-weight:600;}
+  textarea{width:100%;min-height:130px;font-family:var(--mono);font-size:0.85rem;line-height:1.5;padding:12px;border:1px solid var(--line);border-radius:2px;background:#fcfbf8;color:var(--ink);resize:vertical;}
+  textarea:focus, input:focus, select:focus{outline:none;border-color:var(--accent);}
+  .row-actions{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;align-items:center;}
+  button{font-family:var(--mono);font-size:0.78rem;text-transform:uppercase;letter-spacing:0.06em;border:1px solid var(--ink);background:var(--ink);color:var(--paper);padding:9px 16px;border-radius:2px;cursor:pointer;transition:opacity .15s ease;}
+  button.secondary{background:transparent;color:var(--ink);}
+  button.warn{background:transparent;border-color:var(--warn);color:var(--warn);}
+  button.caution{background:transparent;border-color:var(--caution);color:var(--caution);}
+  button.small{padding:5px 10px;font-size:0.66rem;}
+  button:hover{opacity:0.75;}
+  button:disabled{opacity:0.35;cursor:not-allowed;}
+  .file-label{font-family:var(--mono);font-size:0.78rem;text-transform:uppercase;letter-spacing:0.06em;border:1px dashed var(--line);color:var(--ink);padding:9px 16px;border-radius:2px;cursor:pointer;display:inline-block;}
+  .file-label:hover{border-color:var(--accent);}
+  #imgInput{display:none;}
+  .fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;}
+  .field label{display:block;font-family:var(--mono);font-size:0.68rem;text-transform:uppercase;letter-spacing:0.06em;color:#8a8474;margin-bottom:4px;}
+  .field input, .field select, .field textarea.small{width:100%;padding:8px 9px;border:1px solid var(--line);border-radius:2px;font-family:var(--serif);font-size:0.9rem;background:#fcfbf8;}
+  .field textarea.small{min-height:52px;font-family:var(--serif);}
+  .field.full{grid-column:1 / -1;}
+  .empty-hint{font-size:0.85rem;color:#8a8474;font-style:italic;}
+  table{width:100%;border-collapse:collapse;font-size:0.82rem;}
+  thead th{text-align:left;font-family:var(--mono);font-size:0.66rem;text-transform:uppercase;letter-spacing:0.05em;color:#6b6659;border-bottom:2px solid var(--ink);padding:8px 10px;white-space:nowrap;}
+  tbody td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top;}
+  tbody tr:hover{background:var(--accent-soft);}
+  tr.date-sep td{border-top:2px solid var(--ink);padding-top:14px;}
+  tr.date-label td{font-family:var(--mono);font-size:0.72rem;font-weight:600;color:var(--accent);background:var(--accent-soft);padding:6px 10px;}
+  tr.status-blacklist{background:var(--warn-soft);}
+  tr.status-suspicious{background:var(--caution-soft);}
+  .price-cell{font-family:var(--mono);white-space:nowrap;}
+  .action-cell{display:flex;gap:4px;flex-wrap:wrap;}
+  .table-scroll{overflow-x:auto;}
+  .status{font-family:var(--mono);font-size:0.72rem;color:var(--accent);min-height:1em;}
+  .status.err{color:var(--warn);}
+  .summary{font-family:var(--mono);font-size:0.75rem;color:#6b6659;margin-top:10px;}
+  .loading{color:#8a8474;font-family:var(--mono);font-size:0.8rem;}
+  .setup-box{background:#fff8ea;border:1px solid #e2c98a;border-radius:2px;padding:14px 16px;margin-bottom:20px;font-size:0.85rem;}
+  .setup-box input{width:100%;padding:8px 9px;border:1px solid var(--line);border-radius:2px;font-family:var(--mono);font-size:0.78rem;margin-top:8px;}
+  .filter-tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;}
+  .filter-tabs button{background:transparent;color:var(--ink);border-color:var(--line);}
+  .filter-tabs button.active{background:var(--ink);color:var(--paper);border-color:var(--ink);}
+  .badge{font-family:var(--mono);font-size:0.64rem;text-transform:uppercase;padding:2px 6px;border-radius:2px;}
+  .badge-blacklist{background:var(--warn);color:#fff;}
+  .badge-suspicious{background:var(--caution);color:#fff;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>OLX Поръчки</h1>
+    <span class="tag">Синхронизирано с Google Sheets</span>
+  </header>
+
+  <div class="setup-box" id="setupBox">
+    <strong>Настройка (само веднъж):</strong> постави тук URL адреса на твоя Apps Script Web App деплой.
+    <input id="scriptUrlInput" placeholder="https://script.google.com/macros/s/.../exec">
+    <div class="row-actions"><button id="saveUrlBtn">Запази адреса</button></div>
+    <div class="status" id="setupStatus"></div>
+  </div>
+
+  <div class="panel">
+    <h2>1. Постави текста от OLX или качи снимка</h2>
+    <textarea id="rawInput" placeholder="Постави тук копирания текст от OLX чата..."></textarea>
+    <div class="row-actions">
+      <button id="parseBtn">Разчети данните</button>
+      <button class="secondary" id="clearRawBtn">Изчисти</button>
+      <label class="file-label" for="imgInput">📷 Качи снимка</label>
+      <input type="file" id="imgInput" accept="image/*">
+    </div>
+    <div class="status" id="parseStatus"></div>
+  </div>
+
+  <div class="panel" id="reviewPanel" style="display:none;">
+    <h2>2. Провери и допълни</h2>
+    <div class="fields">
+      <div class="field"><label>Име на клиент</label><input id="f_name"></div>
+      <div class="field"><label>Телефон</label><input id="f_phone"></div>
+      <div class="field"><label>Град</label><input id="f_city"></div>
+      <div class="field"><label>Куриер / Офис</label><input id="f_courier"></div>
+      <div class="field">
+        <label>Продукт</label>
+        <select id="f_product_select"></select>
+      </div>
+      <div class="field" id="newProductWrap" style="display:none;"><label>Име на новия продукт</label><input id="f_product_new" placeholder="напр. 5 Ultra"></div>
+      <div class="field"><label>Цена</label><input id="f_price"></div>
+      <div class="field"><label>Дата на поръчка</label><input id="f_date" type="date"></div>
+      <div class="field full"><label>Адрес (Еконт офис и т.н.)</label><textarea class="small" id="f_address"></textarea></div>
+      <div class="field full"><label>Друга бележка</label><input id="f_note"></div>
+    </div>
+    <div class="row-actions">
+      <button id="saveBtn">Запази в Google Sheet</button>
+      <button class="secondary" id="cancelReviewBtn">Отказ</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>3. Поръчки</h2>
+    <div class="filter-tabs">
+      <button class="active" data-filter="all" id="tabAll">Всички</button>
+      <button data-filter="blacklist" id="tabBlacklist">Блаклист</button>
+      <button data-filter="suspicious" id="tabSuspicious">Съмнителни</button>
+    </div>
+    <div id="loadingMsg" class="loading">Зареждане...</div>
+    <div class="table-scroll" id="tableWrap" style="display:none;">
+      <table>
+        <thead>
+          <tr>
+            <th>Клиент</th><th>Телефон</th><th>Град</th>
+            <th>Продукт</th><th>Цена</th><th>Куриер/Офис</th>
+            <th>Адрес</th><th>Бележка</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div class="empty-hint" id="emptyHint" style="display:none;">Няма записани поръчки още.</div>
+    <div class="summary" id="summary"></div>
+    <div class="row-actions" style="margin-top:14px;">
+      <button class="secondary" id="refreshBtn">Обнови</button>
+      <button class="secondary" id="exportBtn">Изтегли CSV</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const URL_KEY = 'olx_script_url';
+let SCRIPT_URL = localStorage.getItem(URL_KEY) || '';
+let orders = [];
+let products = [];
+let currentFilter = 'all';
+const $ = (id) => document.getElementById(id);
+
+if (SCRIPT_URL) { $('scriptUrlInput').value = SCRIPT_URL; $('setupBox').style.display = 'none'; }
+
+$('saveUrlBtn').addEventListener('click', () => {
+  const v = $('scriptUrlInput').value.trim();
+  if (!v.startsWith('https://script.google.com/')) {
+    $('setupStatus').textContent = 'Адресът трябва да е от script.google.com';
+    $('setupStatus').className = 'status err';
+    return;
+  }
+  SCRIPT_URL = v;
+  localStorage.setItem(URL_KEY, v);
+  $('setupStatus').textContent = 'Запазено. Зареждам...';
+  $('setupStatus').className = 'status';
+  loadAll();
+});
+
+function csvEscape(v){
+  if(v == null) return '';
+  const s = String(v);
+  if(/[",\n]/.test(s)) return '"' + s.replace(/"/g,'""') + '"';
+  return s;
+}
+
+// ---------- parsing ----------
+function parseRaw(text){
+  const result = {name:'',phone:'',city:'',courier:'',product:'',price:'',address:'',note:''};
+  const lines = text.split('\n').map(l => l.trim());
+  const labelPatterns = [
+    {key:'name', re:/^(Име|Имена|Клиент)\s*[:\-]\s*(.+)$/i},
+    {key:'phone', re:/^(Телефон|Тел\.?|Тел)\s*[:\-]\s*(.+)$/i},
+    {key:'city', re:/^(Град)\s*[:\-]\s*(.+)$/i},
+    {key:'courier', re:/^(Куриер|K[уy]puep|Kypuep|Kуриер)\s*[:\-]\s*(.+)$/i},
+  ];
+  let addressLines = [];
+  let inDelivery = false;
+  let sawOrderLine = false;
+
+  lines.forEach((line) => {
+    if(!line) return;
+    if(/^ДАННИ НА КЛИЕНТА/i.test(line)) return;
+    if(/^ДОСТАВКА/i.test(line)){ inDelivery = true; return; }
+    if(/^(Имейл|Email|Е-?мейл)\s*[:\-]/i.test(line)) return; // skip email, not needed
+    let matched = false;
+    for(const p of labelPatterns){
+      const m = line.match(p.re);
+      if(m){ result[p.key] = m[2].trim(); matched = true; break; }
+    }
+    if(matched) return;
+
+    const looksLikeOrderLine = /-/.test(line) && /(eur|лв|bgn|€|\d+[.,]\d{2})/i.test(line) && !/тел|телефон|адрес/i.test(line);
+    if(looksLikeOrderLine && !sawOrderLine){
+      const parts = line.split('-').map(s => s.trim()).filter(Boolean);
+      let priceIdx = parts.findIndex(p => /\d/.test(p) && /(eur|лв|bgn|€)/i.test(p));
+      if(priceIdx === -1) priceIdx = parts.findIndex(p => /^\d+([.,]\d+)?$/.test(p));
+      if(priceIdx !== -1){
+        result.product = parts.slice(0, priceIdx).join(' - ');
+        result.price = parts[priceIdx];
+        const rest = parts.slice(priceIdx+1);
+        if(rest.length >= 1) result.note = rest.join(' - ');
+      } else { result.product = line; }
+      sawOrderLine = true;
+      return;
+    }
+    if(/скрит/i.test(line)) return;
+    if(inDelivery){ addressLines.push(line); }
+  });
+  result.address = addressLines.join('\n');
+  return result;
+}
+
+function matchProduct(text){
+  if(!text) return null;
+  const lower = text.toLowerCase();
+  return products.find(p => lower.includes(p.toLowerCase())) || null;
+}
+
+function fillReviewForm(data){
+  $('f_name').value = data.name || '';
+  $('f_phone').value = data.phone || '';
+  $('f_city').value = data.city || '';
+  $('f_courier').value = data.courier || '';
+  $('f_price').value = data.price || '';
+  $('f_address').value = data.address || '';
+  $('f_note').value = data.note || '';
+  $('f_date').value = new Date().toISOString().slice(0,10);
+
+  populateProductSelect();
+  const matched = matchProduct(data.product);
+  if(matched){
+    $('f_product_select').value = matched;
+    $('newProductWrap').style.display = 'none';
+  } else if (data.product) {
+    $('f_product_select').value = '__new__';
+    $('newProductWrap').style.display = 'block';
+    $('f_product_new').value = data.product;
+  }
+  $('reviewPanel').style.display = 'block';
+  $('reviewPanel').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+function populateProductSelect(){
+  const sel = $('f_product_select');
+  sel.innerHTML = '';
+  products.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p; opt.textContent = p;
+    sel.appendChild(opt);
+  });
+  const newOpt = document.createElement('option');
+  newOpt.value = '__new__'; newOpt.textContent = '+ добави нов продукт';
+  sel.appendChild(newOpt);
+}
+
+$('f_product_select').addEventListener('change', () => {
+  $('newProductWrap').style.display = ($('f_product_select').value === '__new__') ? 'block' : 'none';
+});
+
+function runParse(){
+  const text = $('rawInput').value;
+  if(!text.trim()){
+    $('parseStatus').textContent = 'Постави текст първо.';
+    $('parseStatus').className = 'status err';
+    return;
+  }
+  const data = parseRaw(text);
+  fillReviewForm(data);
+  $('parseStatus').textContent = 'Разчетено — провери полетата долу преди запис.';
+  $('parseStatus').className = 'status';
+}
+
+$('parseBtn').addEventListener('click', runParse);
+
+$('clearRawBtn').addEventListener('click', () => { $('rawInput').value = ''; $('parseStatus').textContent = ''; });
+$('cancelReviewBtn').addEventListener('click', () => { $('reviewPanel').style.display = 'none'; });
+
+// ---------- OCR ----------
+$('imgInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+  $('parseStatus').textContent = 'Разпознавам текст от снимката... (може да отнеме 10-20 сек)';
+  $('parseStatus').className = 'status';
+  try{
+    const result = await Tesseract.recognize(file, 'bul+eng');
+    $('rawInput').value = result.data.text;
+    $('parseStatus').textContent = 'Текстът е извлечен от снимката — разчитам автоматично...';
+    runParse();
+  }catch(err){
+    $('parseStatus').textContent = 'OCR грешка: ' + err.message;
+    $('parseStatus').className = 'status err';
+  }
+  e.target.value = '';
+});
+
+// ---------- data load ----------
+async function loadAll(){
+  if (!SCRIPT_URL) {
+    $('loadingMsg').textContent = 'Постави адреса на Apps Script по-горе, за да заредиш поръчките.';
+    return;
+  }
+  $('loadingMsg').style.display = 'block';
+  $('loadingMsg').textContent = 'Зареждане...';
+  try{
+    const [listRes, prodRes] = await Promise.all([
+      fetch(SCRIPT_URL + '?action=list').then(r => r.json()),
+      fetch(SCRIPT_URL + '?action=products').then(r => r.json())
+    ]);
+    if (!listRes.ok) throw new Error(listRes.error || 'грешка при зареждане на поръчки');
+    if (!prodRes.ok) throw new Error(prodRes.error || 'грешка при зареждане на продукти');
+
+    orders = listRes.orders.map(o => ({
+      id:o['ID'], date:o['Дата'], name:o['Име'], phone:o['Телефон'],
+      city:o['Град'], product:o['Продукт'], price:o['Цена'], courier:o['Куриер'],
+      address:o['Адрес'], note:o['Бележка'], status:o['Статус']
+    }));
+    products = prodRes.products.length ? prodRes.products : ['3 Pro','4 Gen'];
+  }catch(e){
+    $('loadingMsg').textContent = 'Грешка при зареждане: ' + e.message;
+    return;
+  }
+  render();
+}
+
+// ---------- render ----------
+$('tabAll').addEventListener('click', () => setFilter('all'));
+$('tabBlacklist').addEventListener('click', () => setFilter('blacklist'));
+$('tabSuspicious').addEventListener('click', () => setFilter('suspicious'));
+
+function setFilter(f){
+  currentFilter = f;
+  ['tabAll','tabBlacklist','tabSuspicious'].forEach(id => $(id).classList.remove('active'));
+  ({all:'tabAll', blacklist:'tabBlacklist', suspicious:'tabSuspicious'})[f] && $(({all:'tabAll', blacklist:'tabBlacklist', suspicious:'tabSuspicious'})[f]).classList.add('active');
+  render();
+}
+
+function statusKey(s){
+  if(s === 'Блаклист') return 'blacklist';
+  if(s === 'Съмнителен') return 'suspicious';
+  return '';
+}
+
+function render(){
+  $('loadingMsg').style.display = 'none';
+  const tbody = $('tbody');
+  tbody.innerHTML = '';
+
+  let visible = orders;
+  if(currentFilter === 'blacklist') visible = orders.filter(o => statusKey(o.status) === 'blacklist');
+  if(currentFilter === 'suspicious') visible = orders.filter(o => statusKey(o.status) === 'suspicious');
+
+  if(visible.length === 0){
+    $('tableWrap').style.display = 'none';
+    $('emptyHint').style.display = 'block';
+    $('summary').textContent = '';
+    return;
+  }
+  $('tableWrap').style.display = 'block';
+  $('emptyHint').style.display = 'none';
+
+  const sorted = [...visible].sort((a,b) => String(a.date||'').localeCompare(String(b.date||'')));
+  let total = 0;
+  let prevDate = null;
+
+  sorted.forEach(o => {
+    if(o.date !== prevDate){
+      const sepTr = document.createElement('tr');
+      sepTr.className = 'date-label';
+      sepTr.innerHTML = `<td colspan="9">${formatDate(o.date)}</td>`;
+      tbody.appendChild(sepTr);
+      prevDate = o.date;
+    }
+    const priceNum = parseFloat(String(o.price).replace(',', '.').replace(/[^\d.]/g,''));
+    if(!isNaN(priceNum)) total += priceNum;
+
+    const sKey = statusKey(o.status);
+    const tr = document.createElement('tr');
+    if(sKey === 'blacklist') tr.className = 'status-blacklist';
+    if(sKey === 'suspicious') tr.className = 'status-suspicious';
+
+    const badge = sKey === 'blacklist' ? '<span class="badge badge-blacklist">Блаклист</span>'
+      : sKey === 'suspicious' ? '<span class="badge badge-suspicious">Съмнителен</span>' : '';
+
+    tr.innerHTML = `
+      <td>${escapeHtml(o.name)} ${badge}</td>
+      <td>${escapeHtml(o.phone)}</td>
+      <td>${escapeHtml(o.city)}</td>
+      <td>${escapeHtml(o.product)}</td>
+      <td class="price-cell">${escapeHtml(o.price)}</td>
+      <td>${escapeHtml(o.courier)}</td>
+      <td style="white-space:pre-wrap;max-width:200px;">${escapeHtml(o.address)}</td>
+      <td>${escapeHtml(o.note)}</td>
+      <td class="action-cell">
+        ${sKey !== 'blacklist' ? `<button class="small warn" data-act="blacklist" data-id="${o.id}">Блаклист</button>` : `<button class="small secondary" data-act="clear" data-id="${o.id}">Изчисти статус</button>`}
+        ${sKey !== 'suspicious' && sKey !== 'blacklist' ? `<button class="small caution" data-act="suspicious" data-id="${o.id}">Съмнителен</button>` : ''}
+        <button class="small secondary" data-act="delete" data-id="${o.id}">Изтрий</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  tbody.querySelectorAll('button[data-act]').forEach(btn => {
+    btn.addEventListener('click', () => handleRowAction(btn.dataset.act, btn.dataset.id, btn));
+  });
+
+  $('summary').textContent = `Общо записи: ${visible.length}   ·   Сума на цените: ${total.toFixed(2)}`;
+}
+
+function formatDate(d){
+  if(!d) return 'Без дата';
+  try{
+    const dt = new Date(d);
+    if(isNaN(dt)) return String(d);
+    return dt.toLocaleDateString('bg-BG', {day:'2-digit', month:'2-digit', year:'numeric'});
+  }catch(e){ return String(d); }
+}
+
+async function handleRowAction(act, id, btn){
+  btn.disabled = true;
+  try{
+    if(act === 'delete'){
+      if(!confirm('Изтриване на този запис — сигурен ли си?')) { btn.disabled = false; return; }
+      await fetch(SCRIPT_URL + '?action=delete&id=' + encodeURIComponent(id));
+      orders = orders.filter(o => o.id !== id);
+    } else {
+      const statusVal = act === 'blacklist' ? 'Блаклист' : act === 'suspicious' ? 'Съмнителен' : '';
+      await fetch(SCRIPT_URL + '?action=setStatus&id=' + encodeURIComponent(id) + '&status=' + encodeURIComponent(statusVal));
+      const o = orders.find(o => o.id === id);
+      if(o) o.status = statusVal;
+    }
+    render();
+  }catch(e){
+    alert('Грешка: ' + e.message);
+    btn.disabled = false;
+  }
+}
+
+function escapeHtml(v){
+  if(v == null) return '';
+  return String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ---------- save ----------
+$('saveBtn').addEventListener('click', async () => {
+  if (!SCRIPT_URL) { alert('Първо постави адреса на Apps Script.'); return; }
+
+  let productVal = $('f_product_select').value;
+  const isNewProduct = productVal === '__new__';
+  if(isNewProduct){
+    productVal = $('f_product_new').value.trim();
+    if(!productVal){ alert('Въведи име на новия продукт.'); return; }
+  }
+
+  const entry = {
+    action: 'add',
+    date: $('f_date').value, name: $('f_name').value.trim(), phone: $('f_phone').value.trim(),
+    city: $('f_city').value.trim(), courier: $('f_courier').value.trim(),
+    product: productVal, price: $('f_price').value.trim(),
+    address: $('f_address').value.trim(), note: $('f_note').value.trim(),
+  };
+  $('saveBtn').disabled = true;
+  $('saveBtn').textContent = 'Записва...';
+  try{
+    if(isNewProduct){
+      await fetch(SCRIPT_URL, {
+        method: 'POST', headers: {'Content-Type': 'text/plain;charset=utf-8'},
+        body: JSON.stringify({action:'addProduct', product: productVal})
+      });
+    }
+    const res = await fetch(SCRIPT_URL, {
+      method: 'POST', headers: {'Content-Type': 'text/plain;charset=utf-8'},
+      body: JSON.stringify(entry)
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'неизвестна грешка');
+    await loadAll();
+    $('reviewPanel').style.display = 'none';
+    $('rawInput').value = '';
+    $('parseStatus').textContent = 'Записано в Google Sheet.';
+  }catch(e){
+    alert('Грешка при запис: ' + e.message);
+  }finally{
+    $('saveBtn').disabled = false;
+    $('saveBtn').textContent = 'Запази в Google Sheet';
+  }
+});
+
+$('refreshBtn').addEventListener('click', loadAll);
+
+$('exportBtn').addEventListener('click', () => {
+  if(orders.length === 0) return;
+  const headers = ['Дата','Име','Телефон','Град','Продукт','Цена','Куриер','Адрес','Бележка','Статус'];
+  const rows = [...orders].sort((a,b)=>String(a.date||'').localeCompare(String(b.date||''))).map(o => [
+    o.date,o.name,o.phone,o.city,o.product,o.price,o.courier,o.address,o.note,o.status
+  ]);
+  const csv = [headers, ...rows].map(r => r.map(csvEscape).join(',')).join('\n');
+  const blob = new Blob(['\uFEFF' + csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `olx-porycki-${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+loadAll();
+</script>
+</body>
+</html>
