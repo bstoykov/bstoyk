@@ -148,6 +148,8 @@ const URL_KEY = 'olx_script_url';
 let SCRIPT_URL = localStorage.getItem(URL_KEY) || '';
 let orders = [];
 let products = [];
+let econtCities = [];
+let econtOffices = [];
 let currentFilter = 'all';
 const $ = (id) => document.getElementById(id);
 
@@ -174,6 +176,125 @@ function csvEscape(v){
   return s;
 }
 
+// ---------- fallback name dictionary (common Bulgarian first names, male & female) ----------
+const BG_FIRST_NAMES_RAW = [
+  // мъжки
+  'Александър','Алекс','Ангел','Ангелин','Андрей','Антон','Антоний','Асен','Атанас','Богдан',
+  'Богомил','Борис','Борислав','Боян','Бранимир','Валентин','Валери','Ванчо','Васил','Величко',
+  'Венелин','Венцислав','Веселин','Виктор','Владимир','Владислав','Владо','Габриел','Галин','Гено',
+  'Георги','Гого','Господин','Григор','Данаил','Даниел','Дарин','Делчо','Денис','Деян','Диан',
+  'Димитър','Динко','Добри','Добромир','Доброслав','Драган','Драгомир','Евгени','Евстати','Ексан',
+  'Елин','Емил','Емилиан','Захари','Захарин','Зафир','Здравко','Иван','Ивайло','Иво','Ивелин',
+  'Иларион','Илия','Илиан','Илко','Йордан','Йосиф','Калин','Калоян','Кирил','Климент','Кольо',
+  'Констанин','Константин','Коста','Костадин','Красимир','Кристиан','Кузман','Лазар','Лъчезар',
+  'Любен','Любомир','Людмил','Марин','Марио','Мартин','Матей','Методи','Милан','Милен','Милко',
+  'Мирослав','Митко','Момчил','Найден','Начо','Недялко','Ненчо','Нено','Никола','Николай','Огнян',
+  'Панайот','Пейо','Пенчо','Петко','Петър','Пламен','Продан','Радо','Радослав','Радомир','Ради',
+  'Радул','Рангел','Рафаел','Румен','Свилен','Светослав','Симеон','Славчо','Слави','Славомир',
+  'Спас','Спасимир','Стамен','Станимир','Станислав','Стефан','Стойчо','Стоян','Тервел','Тихомир',
+  'Тодор','Тома','Томас','Трендафил','Трифон','Хари','Христо','Христофор','Цанко','Цветан',
+  'Цветомир','Чавдар','Чудомир','Явор','Яким','Янаки','Янко','Ясен','Живко','Живодар','Здравин',
+  'Кремен','Кръстьо','Ненко','Пандо','Пею','Радин','Симо','Тано','Тошко','Юлиян','Юри','Гошо',
+  'Ивчо','Кольо','Начо','Пенко','Тончо','Дянко','Радьо','Стойо','Никодим','Игнат','Панко',
+  // женски
+  'Александра','Алберта','Албена','Ана','Анастасия','Ангелина','Анелия','Анета','Анна',
+  'Антоанета','Антония','Биляна','Билянка','Бисера','Бистра','Богдана','Богомила','Бойка',
+  'Бонка','Ваня','Валентина','Валерия','Ванина','Венета','Венцислава','Вера','Верка','Веселина',
+  'Виктория','Виолета','Виолина','Вихра','Габриела','Галина','Ганка','Гергана','Гинка','Дария',
+  'Даниела','Денислава','Десислава','Диана','Диляна','Динка','Добринка','Доня','Донка','Евгения',
+  'Евдокия','Екатерина','Елена','Елеонора','Ели','Елица','Елка','Елмира','Емилия','Ерика','Женя',
+  'Живка','Зара','Захаринка','Здравка','Зина','Злата','Зорница','Зоя','Ива','Иванка','Ивелина',
+  'Илона','Илонка','Илияна','Ирина','Ирена','Йоана','Йорданка','Йовка','Калина','Калинка',
+  'Камелия','Катя','Красимира','Криста','Кристина','Куна','Лалка','Лиляна','Лора','Луиза','Люба',
+  'Любка','Магдалена','Мая','Маргарита','Мариана','Марийка','Мария','Марина','Марта','Мила',
+  'Милена','Мимоза','Мирела','Мирослава','Митра','Надежда','Наталия','Невена','Нели','Никол',
+  'Николета','Нина','Нонка','Пенка','Пепа','Петра','Петя','Пламена','Радка','Радослава',
+  'Радостина','Ралица','Рая','Ренета','Ринка','Росица','Румяна','Румена','Севда','Севдалина',
+  'Силвия','Симона','Славка','Славянка','Снежана','Снежина','Соня','Спаска','Станислава','Стела',
+  'Стефания','Стойна','Таня','Тереза','Теменужка','Теодора','Тодорка','Христина','Цвета',
+  'Цветелина','Цонка','Цветанка','Юлиана','Юлия','Яна','Янка','Яница','Илка','Кера','Пенка',
+  'Стайка','Тодорка','Цанка','Гена','Койна','Пена','Стана','Тонка','Пепка','Диша','Райна',
+  'Костадинка','Пламенка','Христинка','Величка'
+];
+const BG_DIMINUTIVES_RAW = [
+  // мъжки умалителни
+  'Алекс','Сашо','Саша','Ало','Анго','Ачо','Андро','Тончо','Тони','Наско','Насо','Богчо',
+  'Бошко','Бобо','Боби','Бойко','Вальо','Валько','Васко','Васо','Велко','Венци','Весо','Вико',
+  'Владо','Владко','Гаро','Гошо','Жоро','Гого','Гриша','Дани','Дечо','Митко','Митьо','Димо',
+  'Добрин','Женьо','Емо','Захо','Ванко','Ванчо','Ваньо','Ивчо','Иво','Вайло','Илко','Данчо',
+  'Данко','Кало','Кирчо','Косто','Кольо','Краси','Кристо','Любо','Маринчо','Марто','Мето',
+  'Милчо','Миро','Момо','Найдо','Николчо','Ники','Огнянчо','Пано','Пешо','Петьо','Петко',
+  'Пламо','Радо','Руми','Свето','Симо','Слави','Стамо','Стасчо','Стефчо','Стеф','Стойо',
+  'Стойчо','Тошо','Тошко','Цецо','Ясенчо','Данчо','Кольо','Начо','Митьо','Гого','Жоро',
+  'Ицо','Кирко','Пецо','Тото','Ганчо','Тодорчо','Тачо','Йончо','Тино','Пею','Стате',
+  // женски умалителни
+  'Сашка','Анче','Ани','Настя','Ася','Гели','Нели','Нети','Тони','Нета','Биси','Валя',
+  'Тина','Лери','Вени','Весе','Весела','Вики','Вили','Гали','Герга','Дари','Дани','Деси',
+  'Диди','Женя','Ивче','Ванка','Ваня','Иви','Илка','Ирка','Данка','Кали','Ками','Кати',
+  'Кики','Крис','Лили','Любче','Мадо','Магда','Марго','Рита','Мари','Маша','Мими','Мици',
+  'Марти','Мила','Мира','Мирка','Надя','Ники','Рали','Рени','Роси','Свети','Ланче','Сили',
+  'Сими','Слава','Снежи','Соня','Стаси','Стефи','Тея','Дора','Цвети','Юли','Кристи','Мимето',
+  'Мичо','Пенде','Бончо','Ичо','Цецка','Дичо'
+];
+BG_FIRST_NAMES_RAW.push(...BG_DIMINUTIVES_RAW);
+const BG_FIRST_NAMES = new Set(BG_FIRST_NAMES_RAW.map(n => n.toLowerCase()));
+
+function looksLikeNameWord(word){
+  return /^[А-Яа-яЁё]{2,}$/.test(word);
+}
+
+function capitalize(word){
+  return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+}
+
+function findNameByDictionary(text, excludeWords){
+  const excludeLower = new Set([...excludeWords].filter(Boolean).map(w => w.toLowerCase()));
+  const lines = text.split('\n');
+  for(const line of lines){
+    const words = line.trim().split(/\s+/);
+    for(let i = 0; i < words.length - 1; i++){
+      const w1 = words[i].replace(/[.,!?;:]/g,'');
+      const w2 = words[i+1].replace(/[.,!?;:]/g,'');
+      if(looksLikeNameWord(w1) && looksLikeNameWord(w2)){
+        if(excludeLower.has(w1.toLowerCase()) || excludeLower.has(w2.toLowerCase())) continue;
+        if(BG_FIRST_NAMES.has(w1.toLowerCase())){
+          return capitalize(w1) + ' ' + capitalize(w2);
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function findPhoneFallback(text){
+  const m = text.match(/(\+359|0)\s?8[7-9]\d\s?\d{3}\s?\d{3}/);
+  return m ? m[0].replace(/\s+/g,'') : null;
+}
+
+function findPriceFallback(text){
+  const m = text.match(/(\d+[.,]\d{1,2})\s*(€|eur|лв|bgn)/i);
+  return m ? m[0] : null;
+}
+
+function findAddressFallback(text){
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  const results = [];
+  lines.forEach((l, i) => {
+    if(/^(ул\.|с\.|гр\.|бул\.|ж\.к\.|кв\.)/i.test(l)) results.push(l);
+    if(/econt|еконт|speedy|спиди/i.test(l)){
+      results.push(l);
+      if(lines[i+1] && !/^(тел|телефон|\+?\d)/i.test(lines[i+1])) results.push(lines[i+1]);
+    }
+  });
+  return results.length ? [...new Set(results)].join('\n') : null;
+}
+
+function findCourierFallback(text){
+  if(/econt|еконт/i.test(text)) return 'Еконт';
+  if(/speedy|спиди/i.test(text)) return 'Спиди';
+  return null;
+}
+
 // ---------- parsing ----------
 function parseRaw(text){
   const result = {name:'',phone:'',city:'',courier:'',product:'',price:'',address:'',note:''};
@@ -187,16 +308,17 @@ function parseRaw(text){
   let addressLines = [];
   let inDelivery = false;
   let sawOrderLine = false;
+  let hadLabels = false;
 
   lines.forEach((line) => {
     if(!line) return;
     if(/^ДАННИ НА КЛИЕНТА/i.test(line)) return;
     if(/^ДОСТАВКА/i.test(line)){ inDelivery = true; return; }
-    if(/^(Имейл|Email|Е-?мейл)\s*[:\-]/i.test(line)) return; // skip email, not needed
+    if(/^(Имейл|Email|Е-?мейл)\s*[:\-]/i.test(line)) return;
     let matched = false;
     for(const p of labelPatterns){
       const m = line.match(p.re);
-      if(m){ result[p.key] = m[2].trim(); matched = true; break; }
+      if(m){ result[p.key] = m[2].trim(); matched = true; hadLabels = true; break; }
     }
     if(matched) return;
 
@@ -218,6 +340,46 @@ function parseRaw(text){
     if(inDelivery){ addressLines.push(line); }
   });
   result.address = addressLines.join('\n');
+
+  // ---- fallback heuristics for unlabeled chat screenshots ----
+  if(!result.phone){
+    const p = findPhoneFallback(text);
+    if(p) result.phone = p;
+  }
+  if(!result.price){
+    const pr = findPriceFallback(text);
+    if(pr) result.price = pr;
+  }
+  if(!result.city){
+    const c = findCityFromEcont(text);
+    if(c) result.city = c;
+  }
+  if(!result.courier){
+    const foundOffice = findOfficeFromEcont(text);
+    if(foundOffice){
+      result.courier = 'Еконт';
+      if(!result.address) result.address = foundOffice.name + (foundOffice.address ? ' — ' + foundOffice.address : '');
+      if(!result.city && foundOffice.city) result.city = foundOffice.city;
+    }
+  }
+  if(!result.address){
+    const a = findAddressFallback(text);
+    if(a) result.address = a;
+  }
+  if(!result.courier){
+    const c = findCourierFallback(text);
+    if(c) result.courier = c;
+  }
+  if(!result.product){
+    const matched = matchProduct(text);
+    if(matched) result.product = matched;
+  }
+  if(!result.name){
+    const excludeWords = new Set([result.city, result.courier].filter(Boolean));
+    const n = findNameByDictionary(text, excludeWords);
+    if(n) result.name = n;
+  }
+
   return result;
 }
 
@@ -331,6 +493,54 @@ async function loadAll(){
     return;
   }
   render();
+  loadEcontData(); // не блокира основния изглед, зарежда се във фонов режим
+}
+
+async function loadEcontData(){
+  const cachedCities = localStorage.getItem('econt_cities_cache');
+  const cachedOffices = localStorage.getItem('econt_offices_cache');
+  if(cachedCities) econtCities = JSON.parse(cachedCities);
+  if(cachedOffices) econtOffices = JSON.parse(cachedOffices);
+  try{
+    const [cRes, oRes] = await Promise.all([
+      fetch(SCRIPT_URL + '?action=econtCities').then(r => r.json()),
+      fetch(SCRIPT_URL + '?action=econtOffices').then(r => r.json())
+    ]);
+    if(cRes.ok && cRes.cities.length){
+      econtCities = cRes.cities;
+      localStorage.setItem('econt_cities_cache', JSON.stringify(econtCities));
+    }
+    if(oRes.ok && oRes.offices.length){
+      econtOffices = oRes.offices;
+      localStorage.setItem('econt_offices_cache', JSON.stringify(econtOffices));
+    }
+  }catch(e){
+    // тихо пропускаме — ще ползваме кеша или резервните правила по-долу
+  }
+}
+
+function findCityFromEcont(text){
+  if(!econtCities.length) return null;
+  const lower = text.toLowerCase();
+  let best = null;
+  for(const city of econtCities){
+    if(city.length < 3) continue; // пропускаме прекалено кратки имена, за да няма фалшиви съвпадения
+    if(lower.includes(city.toLowerCase())){
+      if(!best || city.length > best.length) best = city;
+    }
+  }
+  return best;
+}
+
+function findOfficeFromEcont(text){
+  if(!econtOffices.length) return null;
+  const lower = text.toLowerCase();
+  for(const office of econtOffices){
+    if(office.name && office.name.length >= 3 && lower.includes(office.name.toLowerCase())){
+      return office;
+    }
+  }
+  return null;
 }
 
 // ---------- render ----------
